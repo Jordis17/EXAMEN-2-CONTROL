@@ -26,12 +26,15 @@
 \begin{document}
 \sloppy
 
-\title{Control por realimentación de estados con observador y acción integral para un convertidor DC-DC}
+\title{Diseño de controlador y observador\\ Tarea Examen Control Automático}
 
 \author{
-\IEEEauthorblockN{\pendiente{Nombre 1}, \pendiente{Nombre 2}, \pendiente{Nombre 3}}
-\IEEEauthorblockA{Escuela de Ingeniería en Electrónica, Área de Ingeniería en Mecatrónica\\ Instituto Tecnológico de Costa Rica\\
-Control Automático, II semestre 2026 — Profesor: Adolfo Chaves Jiménez}
+\IEEEauthorblockA{Escuela de Ingeniería Electrónica\\
+Tecnológico de Costa Rica\\
+EL-5408 Control Automático\\
+II Semestre 2026\\
+Esquivel Salazar Greivin (2023102615), López Méndez Abner (2022273075), Segura Chinchilla Jordi (2022240646)\\
+gresquivel@estudiantec.cr, ablopez@estudiantec.cr, jorsegura@estudiantec.cr}
 }
 
 \maketitle
@@ -48,11 +51,15 @@ Espacio de estados, realimentación de estados, observador, control integral, co
 % ------------------------------------------------------------------
 \section{Introducción}
 
-Los convertidores DC-DC entregan un voltaje regulado a partir de una fuente de corriente directa no regulada. El convertidor elevador (\emph{boost}) produce un voltaje de salida mayor que el de entrada y, sin control, presenta una respuesta muy oscilatoria debido al circuito LC.
+Los convertidores DC-DC entregan un voltaje regulado a partir de una fuente de corriente directa no regulada. El convertidor elevador (\emph{boost}) produce un voltaje de salida mayor que el de entrada y, sin control, presenta una respuesta muy oscilatoria debido al circuito LC. Por eso es un buen ejemplo para aplicar el diseño en espacio de estados que se estudia en el curso.
 
-El objetivo de este trabajo es diseñar, validar y simular un sistema de control en espacio de estados para este convertidor. El trabajo tiene tres partes: (1)~obtener el diseño con una inteligencia artificial (IA) gratuita, (2)~comprobar con MATLAB si el procedimiento de la IA es correcto y (3)~implementar el sistema controlador-observador-integrador en Simulink.
+En este enfoque, la ley de control $u = -Kx$ permite ubicar los polos del lazo cerrado donde se necesiten, siempre que el sistema sea controlable. Como en la práctica no se miden todos los estados, se agrega un observador que los estima a partir de la salida, y para eliminar el error de estado estacionario se incorpora un integrador del error. Para relacionar las especificaciones temporales con la ubicación de los polos se usa la aproximación de segundo orden,
+\begin{equation}
+\zeta = \frac{-\ln(\%OS/100)}{\sqrt{\pi^2 + \ln^2(\%OS/100)}}, \qquad T_s \approx \frac{4}{\zeta\omega_n}.
+\label{eq:segundo}
+\end{equation}
 
-Antes de usar la IA se calculó una solución de referencia propia, para tener con qué comparar su respuesta.
+Los objetivos concretos del trabajo son tres: (1)~obtener el diseño del controlador, del observador y de la corrección del error mediante una inteligencia artificial (IA) gratuita, (2)~comprobar con un Live Script de MATLAB si el procedimiento de la IA es correcto y (3)~implementar el sistema controlador-observador-integrador en Simulink y demostrar que funciona. Antes de usar la IA se calculó una solución de referencia propia, para tener con qué comparar su respuesta. Los cálculos numéricos y las gráficas se generaron en MATLAB.
 
 % ------------------------------------------------------------------
 \section{Modelo de la planta}
@@ -108,10 +115,9 @@ Además, la planta es de tipo~0. Con realimentación de estados sola, la gananci
 \section{Diseño del controlador con acción integral}
 
 \subsection{Polos deseados}
-Para un sobreimpulso de 20\,\% y $T_s = 0.5$\,s (criterio del 2\,\%):
+Para un sobreimpulso de 20\,\% y $T_s = 0.5$\,s (criterio del 2\,\%), las expresiones de \eqref{eq:segundo} dan
 \begin{equation}
-\zeta = \frac{-\ln(0.2)}{\sqrt{\pi^2 + \ln^2(0.2)}} = 0.4559, \qquad
-\zeta\omega_n = \frac{4}{T_s} = 8,
+\zeta = 0.4559, \qquad \zeta\omega_n = \frac{4}{T_s} = 8,
 \end{equation}
 de donde $\omega_n = 17.546$\,rad/s, $\omega_d = 15.616$\,rad/s y los polos dominantes son $s_{1,2} = -8 \pm j15.616$.
 
@@ -224,7 +230,7 @@ La respuesta íntegra de la IA se incluye en el Apéndice~\ref{ap:ia}.
 El Live Script
 \texttt{ValidacionIA\_Convertidor\-DCDC.mlx} es independiente y está documentado en español. Para cada etapa calcula el resultado correcto y lo compara con el valor de la IA. Sigue este orden: modelo, lazo abierto, controlabilidad y observabilidad, polos deseados, ganancias $K$ y $K_e$, ganancia $L$, sistema completo, comparación con la IA, prueba con las ganancias de la IA, simulación y conclusión.
 
-Las ganancias se calcularon de dos formas: con las ecuaciones analíticas de las secciones~IV y~V, y con la función \texttt{acker}. La diferencia entre ambos métodos fue del orden de $10^{-14}$, lo que confirma el desarrollo analítico.
+Las ganancias se calcularon de dos formas: con las ecuaciones analíticas de las secciones~IV y~V, y con la función \texttt{acker} de Control System Toolbox \cite{matlab}. La diferencia entre ambos métodos fue del orden de $10^{-14}$, lo que confirma el desarrollo analítico.
 
 La comparación con la IA (Tabla~\ref{tab:comparacion}) usa una tolerancia de 1\,\% de error relativo, suficiente para absorber redondeos de cuatro cifras significativas.
 
@@ -257,7 +263,7 @@ Durante el desarrollo del script se observó algo importante para la validación
 \section{Implementación en Simulink}
 
 \subsection{Modelo}
-La Fig.~\ref{fig:diagrama} muestra el modelo de Simulink (archivo \texttt{ConvertidorDCDC\_\-Control\-Observador.slx}). Se usaron solo bloques básicos y no hay subsistemas:
+La Fig.~\ref{fig:diagrama} muestra el modelo de Simulink (archivo \texttt{ConvertidorDCDC\_\-Control\-Observador.slx}). Se usaron solo bloques básicos de Simulink \cite{simulink} y no hay subsistemas:
 \begin{itemize}
 \item \emph{Planta}: bloque State-Space con $A$, $B$, salida $x$ completa y condición inicial $x(0) = [2\ \ 1]^T$. Una ganancia $C$ obtiene la salida medida $y$.
 \item \emph{Acción integral}: suma $r - y$, integrador y ganancia $K_e$.
@@ -339,7 +345,7 @@ La Fig.~\ref{fig:estados} muestra que los estados estimados alcanzan a los reale
 \end{itemize}
 
 % ------------------------------------------------------------------
-\begin{thebibliography}{1}
+\begin{thebibliography}{9}
 \bibitem{nise}
 N.~S. Nise, \emph{Control Systems Engineering}, 7th~ed. Hoboken, NJ, USA: Wiley, 2015.
 
@@ -347,7 +353,10 @@ N.~S. Nise, \emph{Control Systems Engineering}, 7th~ed. Hoboken, NJ, USA: Wiley,
 E.~van~Dijk, J.~N. Spruijt, D.~M. O'Sullivan y J.~B. Klaasens, ``PWM-switch modeling of DC-DC converters,'' \emph{IEEE Trans. Power Electron.}, vol.~10, no.~6, pp.~659--665, 1995.
 
 \bibitem{matlab}
-The MathWorks, Inc., \emph{Control System Toolbox User's Guide}, R2026a. Natick, MA, USA, 2026.
+The MathWorks, Inc., \emph{Control System Toolbox Documentation}, Natick, MA, USA. [En línea]. Disponible: \url{https://www.mathworks.com/help/control/}
+
+\bibitem{simulink}
+The MathWorks, Inc., \emph{Simulink Documentation}, Natick, MA, USA. [En línea]. Disponible: \url{https://www.mathworks.com/help/simulink/}
 \end{thebibliography}
 
 % ------------------------------------------------------------------
