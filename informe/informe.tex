@@ -53,7 +53,7 @@ Espacio de estados, realimentación de estados, observador, control integral, co
 
 Los convertidores DC-DC entregan un voltaje regulado a partir de una fuente de corriente directa no regulada. El convertidor elevador (\emph{boost}) produce un voltaje de salida mayor que el de entrada y, sin control, presenta una respuesta muy oscilatoria debido al circuito LC. Por eso es un buen ejemplo para aplicar el diseño en espacio de estados que se estudia en el curso.
 
-En este enfoque, la ley de control $u = -Kx$ permite ubicar los polos del lazo cerrado donde se necesiten, siempre que el sistema sea controlable. Como en la práctica no se miden todos los estados, se agrega un observador que los estima a partir de la salida, y para eliminar el error de estado estacionario se incorpora un integrador del error. Para relacionar las especificaciones temporales con la ubicación de los polos se usa la aproximación de segundo orden,
+En este enfoque, la ley de control $u = -\mathbf{K}\mathbf{x}$ permite ubicar los polos del lazo cerrado donde se necesiten, siempre que el sistema sea controlable. Como en la práctica no se miden todos los estados, se agrega un observador que los estima a partir de la salida, y para eliminar el error de estado estacionario se incorpora un integrador del error. Para relacionar las especificaciones temporales con la ubicación de los polos se usa la aproximación de segundo orden,
 \begin{equation}
 \zeta = \frac{-\ln(\%OS/100)}{\sqrt{\pi^2 + \ln^2(\%OS/100)}}, \qquad T_s \approx \frac{4}{\zeta\omega_n}.
 \label{eq:segundo}
