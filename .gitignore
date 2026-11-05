@@ -1,0 +1,6 @@
+informe/*.aux
+informe/*.log
+informe/*.out
+slprj/
+*.slxc
+*.asv

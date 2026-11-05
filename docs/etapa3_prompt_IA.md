@@ -17,7 +17,7 @@ REQUISITOS DE DISEÑO
 2. Error de estado estacionario cero ante una entrada escalón, usando control integral con esta estructura:
    dx_N/dt = r − y,    u = −K·x + Ke·x_N,    con K = [k1  k2].
 3. Ubica el tercer polo del sistema aumentado 5 veces más a la izquierda que la parte real de los polos dominantes.
-4. Observador de estado completo (Luenberger): dx̂/dt = A·x̂ + B·u + L·(y − C·x̂), con L = [l1; l2]. El observador debe ser 10 veces más rápido que el controlador: sus dos polos deben ser los polos dominantes del controlador multiplicados por 10 (mismo ζ, ωn 10 veces mayor).
+4. Observador de estado completo (Luenberger): dx_est/dt = A·x_est + B·u + L·(y − C·x_est), con L = [l1; l2]. El observador debe ser 10 veces más rápido que el controlador: sus dos polos deben ser los polos dominantes del controlador multiplicados por 10 (mismo ζ, ωn 10 veces mayor).
 5. Haz el diseño directamente en las coordenadas originales (sin pasar a la forma de variables de fase), igualando el polinomio característico con el polinomio deseado.
 
 ENTREGA LOS RESULTADOS EN ESTE ORDEN

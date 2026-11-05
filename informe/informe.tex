@@ -1,0 +1,359 @@
+\documentclass[conference,a4paper]{IEEEtran}
+
+% ------------------------------------------------------------------
+% Paquetes
+% ------------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla,es-nodecimaldot]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{framed}
+\usepackage{cite}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+% Marca en rojo para lo que falta completar (debe desaparecer en la versión final)
+\newcommand{\pendiente}[1]{\textcolor{red}{\textbf{[PENDIENTE: #1]}}}
+
+% Incluye una figura si el archivo existe; si no, deja un recuadro de aviso
+\newcommand{\figuraOpendiente}[3]{%
+  \IfFileExists{#1}{\includegraphics[width=#2]{#1}}%
+  {\fbox{\parbox[c][3.5cm][c]{0.92\columnwidth}{\centering\pendiente{#3}}}}}
+
+\begin{document}
+\sloppy
+
+\title{Control por realimentación de estados con observador y acción integral para un convertidor DC-DC}
+
+\author{
+\IEEEauthorblockN{\pendiente{Nombre 1}, \pendiente{Nombre 2}, \pendiente{Nombre 3}}
+\IEEEauthorblockA{Área Académica de Ingeniería Mecatrónica, Instituto Tecnológico de Costa Rica\\
+Control Automático, II semestre 2026 — Profesor: Adolfo Chaves Jiménez}
+}
+
+\maketitle
+
+% ------------------------------------------------------------------
+\begin{abstract}
+Este trabajo presenta el diseño de un sistema de control para el convertidor DC-DC del problema~36, capítulo~12, del libro de Nise. Se diseñó un controlador por realimentación de estados con acción integral para obtener un sobreimpulso de 20\,\%, un tiempo de asentamiento de 0.5\,s y error de estado estacionario nulo, junto con un observador de Luenberger diez veces más rápido que el controlador. El diseño se solicitó a una inteligencia artificial gratuita mediante un prompt estructurado, y su respuesta se verificó de forma independiente con un Live Script de MATLAB. Finalmente, el sistema completo se implementó en Simulink con condiciones iniciales distintas en la planta y en el observador. Los resultados muestran que el observador converge en unos 0.055\,s, que la salida sigue la referencia sin error y que el desempeño cumple las especificaciones.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Espacio de estados, realimentación de estados, observador, control integral, convertidor DC-DC.
+\end{IEEEkeywords}
+
+% ------------------------------------------------------------------
+\section{Introducción}
+
+Los convertidores DC-DC entregan un voltaje regulado a partir de una fuente de corriente directa no regulada. El convertidor elevador (\emph{boost}) produce un voltaje de salida mayor que el de entrada y, sin control, presenta una respuesta muy oscilatoria debido al circuito LC.
+
+El objetivo de este trabajo es diseñar, validar y simular un sistema de control en espacio de estados para este convertidor. El trabajo tiene tres partes: (1)~obtener el diseño con una inteligencia artificial (IA) gratuita, (2)~comprobar con MATLAB si el procedimiento de la IA es correcto y (3)~implementar el sistema controlador-observador-integrador en Simulink.
+
+Antes de usar la IA se calculó una solución de referencia propia, para tener con qué comparar su respuesta.
+
+% ------------------------------------------------------------------
+\section{Modelo de la planta}
+
+El problema~67 del capítulo~4 de \cite{nise} presenta el modelo promediado del convertidor boost \cite{vandijk}:
+\begin{equation}
+L\frac{di_L}{dt} = -(1-d)\,u_C + E_s, \qquad
+C\frac{du_C}{dt} = (1-d)\,i_L - \frac{u_C}{R}
+\label{eq:fisico}
+\end{equation}
+donde $i_L$ es la corriente del inductor, $u_C$ el voltaje del capacitor (salida), $E_s$ el voltaje de entrada y $d$ el ciclo de trabajo. El problema~36 del capítulo~12 usa $L = 6$\,mH, $C = 1$\,mF, $R = 100\,\Omega$ y $d = 0.5$, con lo que se obtiene
+\begin{equation}
+\dot{x} = \underbrace{\begin{bmatrix}0 & -83.33\\ 500 & -10\end{bmatrix}}_{A} x
++ \underbrace{\begin{bmatrix}166.67\\ 0\end{bmatrix}}_{B} E_s, \quad
+y = \underbrace{\begin{bmatrix}0 & 1\end{bmatrix}}_{C} x
+\label{eq:ss}
+\end{equation}
+con $x = [i_L\ \ u_C]^T$. Se verificó que estos coeficientes coinciden con \eqref{eq:fisico}: $(1-d)/L = 83.33$, $1/L = 166.67$, $(1-d)/C = 500$ y $1/(RC) = 10$.
+
+En este modelo la entrada de control es $E_s$ y el ciclo de trabajo se mantiene fijo, lo que da un sistema lineal. En un convertidor real normalmente se manipula $d$, pero aquí se respeta el planteamiento del libro.
+
+La función de transferencia, $G(s) = C(sI - A)^{-1}B$, es
+\begin{equation}
+G(s) = \frac{U_C(s)}{E_s(s)} = \frac{83\,335}{s^2 + 10s + 41\,665}.
+\label{eq:tf}
+\end{equation}
+Su ganancia en DC es $G(0) = 2.0001$. Esto concuerda con la relación ideal del convertidor boost, $u_C = E_s/(1-d) = 2E_s$, y confirma que el modelo es físicamente coherente.
+
+% ------------------------------------------------------------------
+\section{Análisis de lazo abierto}
+
+Los polos de lazo abierto son las raíces de $s^2 + 10s + 41\,665 = 0$, es decir, $s = -5 \pm j204.06$. Esto corresponde a $\omega_n = 204.12$\,rad/s y $\zeta = 0.0245$. La planta es estable pero casi no tiene amortiguamiento: ante un escalón tendría un sobreimpulso de 92.6\,\% y un tiempo de asentamiento cercano a 0.8\,s. Por lo tanto, necesita control.
+
+Para saber si el diseño es posible se revisaron la controlabilidad y la observabilidad (Tabla~\ref{tab:ctrb}). Ambas matrices tienen rango completo, por lo que existen una ganancia $K$ que ubica los polos del lazo cerrado y una ganancia $L$ para el observador.
+
+\begin{table}[!t]
+\centering
+\caption{Controlabilidad y observabilidad}
+\label{tab:ctrb}
+\begin{tabular}{lccc}
+\toprule
+Matriz & Expresión & Determinante & Rango \\
+\midrule
+Controlabilidad & $[B\ \ AB]$ & $1.389\times10^{7}$ & 2 \\
+Observabilidad & $[C;\ CA]$ & $-500$ & 2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Además, la planta es de tipo~0. Con realimentación de estados sola, la ganancia en DC de lazo cerrado no es unitaria, así que se necesita acción integral para eliminar el error de estado estacionario.
+
+% ------------------------------------------------------------------
+\section{Diseño del controlador con acción integral}
+
+\subsection{Polos deseados}
+Para un sobreimpulso de 20\,\% y $T_s = 0.5$\,s (criterio del 2\,\%):
+\begin{equation}
+\zeta = \frac{-\ln(0.2)}{\sqrt{\pi^2 + \ln^2(0.2)}} = 0.4559, \qquad
+\zeta\omega_n = \frac{4}{T_s} = 8,
+\end{equation}
+de donde $\omega_n = 17.546$\,rad/s, $\omega_d = 15.616$\,rad/s y los polos dominantes son $s_{1,2} = -8 \pm j15.616$.
+
+\subsection{Estructura del control integral}
+Siguiendo la sección~12.8 de \cite{nise}, se agrega el estado $x_N$, que es la integral del error:
+\begin{equation}
+\dot{x}_N = r - y, \qquad u = -Kx + K_e x_N.
+\end{equation}
+El sistema aumentado en lazo cerrado queda
+\begin{equation}
+\begin{bmatrix}\dot{x}\\ \dot{x}_N\end{bmatrix} =
+\begin{bmatrix}A - BK & BK_e\\ -C & 0\end{bmatrix}
+\begin{bmatrix}x\\ x_N\end{bmatrix} +
+\begin{bmatrix}0\\ 1\end{bmatrix} r.
+\label{eq:aumentado}
+\end{equation}
+Si el sistema llega a estado estacionario, $\dot{x}_N = 0$ y, por lo tanto, $y = r$: el error es nulo aunque la planta sea de tipo~0.
+
+El integrador agrega un tercer polo, que se ubicó cinco veces más a la izquierda que la parte real de los polos dominantes ($s_3 = -40$) para que no altere la respuesta. El polinomio deseado es
+\begin{equation}
+(s+40)(s^2+16s+307.85) = s^3 + 56s^2 + 947.85s + 12\,314.2.
+\end{equation}
+
+\subsection{Cálculo de las ganancias}
+Con $a = 166.67k_1$, $b = 83.33 + 166.67k_2$ y $c = 166.67K_e$, el polinomio característico de \eqref{eq:aumentado} es
+\begin{equation}
+s^3 + (10 + a)s^2 + (10a + 500b)s + 500c.
+\end{equation}
+Al igualar coeficientes con el polinomio deseado se obtiene
+\begin{equation}
+K = \begin{bmatrix}0.2760 & -0.4941\end{bmatrix}, \qquad K_e = 0.14777.
+\end{equation}
+Sin el integrador, la ganancia en DC con estas ganancias sería de 87.9: ante una referencia de 1\,V la salida terminaría en 87.9\,V. Esto muestra que la acción integral es indispensable.
+
+% ------------------------------------------------------------------
+\section{Diseño del observador}
+
+El controlador necesita los dos estados, pero solo se mide $u_C$. Por eso se usa un observador de Luenberger:
+\begin{equation}
+\dot{\hat{x}} = A\hat{x} + Bu + L(y - C\hat{x}).
+\end{equation}
+
+Para que sea diez veces más rápido que el controlador, sus polos se obtuvieron multiplicando por diez los polos dominantes: $s_o = -80 \pm j156.16$. Así se conserva $\zeta$, y las constantes de tiempo y el tiempo de asentamiento quedan diez veces menores (0.05\,s contra 0.5\,s). Se tomaron como referencia los polos dominantes porque son los que definen el desempeño especificado; el polo en $-40$ solo cumple una función auxiliar.
+
+El polinomio característico del observador es
+\begin{equation}
+\det\left(sI - (A - LC)\right) = s^2 + (10 + l_2)s + 41\,665 + 500\,l_1,
+\end{equation}
+e igualándolo con $s^2 + 160s + 30\,785.5$ resulta
+\begin{equation}
+L = \begin{bmatrix}-21.759 & 150\end{bmatrix}^T.
+\end{equation}
+Que $l_1$ sea negativo es normal: la planta tiene $\omega_n = 204$\,rad/s y el observador pide $\omega_n = 175$\,rad/s. Lo que acelera la estimación es la parte real, que pasa de $-5$ a $-80$.
+
+\subsection{Sistema completo}
+El controlador usa el estado estimado, $u = -K\hat{x} + K_e x_N$. Con los estados $[x;\ x_N;\ \hat{x}]$:
+\begin{equation}
+\begin{bmatrix}\dot{x}\\ \dot{x}_N\\ \dot{\hat{x}}\end{bmatrix} =
+\begin{bmatrix}A & BK_e & -BK\\ -C & 0 & 0\\ LC & BK_e & A - BK - LC\end{bmatrix}
+\begin{bmatrix}x\\ x_N\\ \hat{x}\end{bmatrix} +
+\begin{bmatrix}0\\ 1\\ 0\end{bmatrix} r.
+\end{equation}
+Por el principio de separación, sus cinco polos son los tres del controlador más los dos del observador: $-8 \pm j15.616$, $-40$ y $-80 \pm j156.16$. Gracias a esto, $K$ y $L$ se pueden diseñar por separado.
+
+% ------------------------------------------------------------------
+\section{Diseño mediante inteligencia artificial}
+
+\subsection{Herramienta y prompt}
+Se utilizó \pendiente{herramienta, plan gratuito, modelo y fecha}. El prompt se redactó para que la IA resolviera el problema completo sin ambigüedades: incluye las matrices del modelo, las especificaciones, la estructura del control integral con sus signos, el criterio para el tercer polo, la definición de ``diez veces más rápido'' y el orden en que debe presentar los resultados. El prompt no incluye los resultados de la solución de referencia. Su texto exacto es el siguiente:
+
+\begin{framed}
+\small
+\noindent Actúa como un profesor de Control Automático. Resuelve paso a paso el siguiente problema de diseño en espacio de estados, mostrando todas las ecuaciones intermedias y los resultados numéricos con al menos 4 cifras significativas.
+
+\smallskip\noindent PLANTA (Nise, Control Systems Engineering, 7.ª ed., capítulo 12, problema 36)\\
+Convertidor DC-DC tipo boost (modelo promediado) con L = 6 mH, C = 1 mF, R = 100 $\Omega$ y ciclo de trabajo d = 0.5. Estados x = [i\_L; u\_C] (corriente del inductor en A y voltaje del capacitor en V), entrada u = E\_s (V) y salida y = u\_C (V):
+
+\smallskip\noindent A = [0 \ $-$83.33; 500 \ $-$10], \ B = [166.67; 0], \ C = [0 \ 1], \ D = 0
+
+\smallskip\noindent Usa exactamente estas matrices (no recalcules los coeficientes a partir de L, C y R).
+
+\smallskip\noindent REQUISITOS DE DISEÑO\\
+1. Desempeño del controlador: 20 \% de sobreimpulso y tiempo de asentamiento de 0.5 s (criterio del 2 \%, Ts = 4/($\zeta\cdot\omega$n)).\\
+2. Error de estado estacionario cero ante una entrada escalón, usando control integral con esta estructura: dx\_N/dt = r $-$ y, \ u = $-$K$\cdot$x + Ke$\cdot$x\_N, \ con K = [k1 \ k2].\\
+3. Ubica el tercer polo del sistema aumentado 5 veces más a la izquierda que la parte real de los polos dominantes.\\
+4. Observador de estado completo (Luenberger): dx\_est/dt = A$\cdot$x\_est + B$\cdot$u + L$\cdot$(y $-$ C$\cdot$x\_est), con L = [l1; l2]. El observador debe ser 10 veces más rápido que el controlador: sus dos polos deben ser los polos dominantes del controlador multiplicados por 10 (mismo $\zeta$, $\omega$n 10 veces mayor).\\
+5. Haz el diseño directamente en las coordenadas originales (sin pasar a la forma de variables de fase), igualando el polinomio característico con el polinomio deseado.
+
+\smallskip\noindent ENTREGA LOS RESULTADOS EN ESTE ORDEN\\
+a) Polos de lazo abierto, $\zeta$, $\omega$n y función de transferencia U\_C(s)/E\_s(s).\\
+b) Matrices de controlabilidad y observabilidad, sus determinantes y la conclusión.\\
+c) $\zeta$, $\omega$n, $\omega$d, polos dominantes deseados, tercer polo y polinomio deseado de tercer orden.\\
+d) Matriz del sistema aumentado en lazo cerrado, su polinomio característico en función de k1, k2 y Ke, el sistema de ecuaciones y los valores de K y Ke.\\
+e) Polos deseados del observador, polinomio característico de (A $-$ L$\cdot$C) en función de l1 y l2, y los valores de L.\\
+f) Ecuaciones del sistema completo controlador-observador-integrador (5 estados) y, usando el principio de separación, cuáles son sus 5 polos.\\
+g) Verificación: sustituye tus ganancias y comprueba que los valores propios de las matrices de lazo cerrado coinciden con los deseados.\\
+h) Una tabla resumen final con: polos dominantes, tercer polo, K, Ke, polos del observador y L.
+
+\smallskip\noindent No uses MATLAB ni otro software para obtener los resultados: muestra el procedimiento analítico. Si haces alguna suposición, indícala explícitamente.
+\end{framed}
+
+La respuesta íntegra de la IA se incluye en el Apéndice~\ref{ap:ia}.
+
+\subsection{Dificultades}
+\pendiente{Resumen breve de las dificultades: número de intentos, qué se ajustó en el prompt y qué errores cometió la IA, si los hubo.}
+
+% ------------------------------------------------------------------
+\section{Validación con MATLAB}
+
+El Live Script
+\texttt{ValidacionIA\_Convertidor\-DCDC.mlx} es independiente y está documentado en español. Para cada etapa calcula el resultado correcto y lo compara con el valor de la IA. Sigue este orden: modelo, lazo abierto, controlabilidad y observabilidad, polos deseados, ganancias $K$ y $K_e$, ganancia $L$, sistema completo, comparación con la IA, prueba con las ganancias de la IA, simulación y conclusión.
+
+Las ganancias se calcularon de dos formas: con las ecuaciones analíticas de las secciones~IV y~V, y con la función \texttt{acker}. La diferencia entre ambos métodos fue del orden de $10^{-14}$, lo que confirma el desarrollo analítico.
+
+La comparación con la IA (Tabla~\ref{tab:comparacion}) usa una tolerancia de 1\,\% de error relativo, suficiente para absorber redondeos de cuatro cifras significativas.
+
+\begin{table}[!t]
+\centering
+\caption{Comparación entre la IA y la validación en MATLAB}
+\small\setlength{\tabcolsep}{4pt}
+\label{tab:comparacion}
+\begin{tabular}{lccc}
+\toprule
+Resultado & MATLAB & IA & Veredicto \\
+\midrule
+Polos lazo abierto & $-5 \pm j204.06$ & \textcolor{red}{?} & \\
+$\zeta$, $\omega_n$ & 0.4559, 17.546 & \textcolor{red}{?} & \\
+Polos dominantes & $-8 \pm j15.616$ & \textcolor{red}{?} & \\
+Tercer polo & $-40$ & \textcolor{red}{?} & \\
+$K$ & $[0.2760\ \ {-0.4941}]$ & \textcolor{red}{?} & \\
+$K_e$ & 0.14777 & \textcolor{red}{?} & \\
+Polos observador & $-80 \pm j156.16$ & \textcolor{red}{?} & \\
+$L$ & $[-21.759\ \ 150]^T$ & \textcolor{red}{?} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\pendiente{Veredicto del Live Script: si la IA acertó o en qué se equivocó, y polos y desempeño obtenidos al sustituir sus ganancias.}
+
+Durante el desarrollo del script se observó algo importante para la validación. Una ganancia $L$ incorrecta casi no cambia la respuesta al escalón con condiciones iniciales cero, porque el observador no afecta la función de transferencia de $r$ a $y$. Por eso el script compara los polos y no solo las gráficas: una simulación ``que se ve bien'' no basta para dar por correcto un observador.
+
+% ------------------------------------------------------------------
+\section{Implementación en Simulink}
+
+\subsection{Modelo}
+La Fig.~\ref{fig:diagrama} muestra el modelo de Simulink (archivo \texttt{ConvertidorDCDC\_\-Control\-Observador.slx}). Se usaron solo bloques básicos y no hay subsistemas:
+\begin{itemize}
+\item \emph{Planta}: bloque State-Space con $A$, $B$, salida $x$ completa y condición inicial $x(0) = [2\ \ 1]^T$. Una ganancia $C$ obtiene la salida medida $y$.
+\item \emph{Acción integral}: suma $r - y$, integrador y ganancia $K_e$.
+\item \emph{Observador}: un bloque State-Space con $\dot{\hat{x}} = (A - LC)\hat{x} + [B\ \ L][u;\ y]$, que es la misma ecuación del observador reordenada. Su condición inicial es $\hat{x}(0) = [0\ \ 0]^T$.
+\item \emph{Ley de control}: $u = K_e x_N - K\hat{x}$.
+\end{itemize}
+
+El controlador solo usa la salida medida $y$ y el estado estimado. El estado real $x$ se registra únicamente para compararlo con la estimación. Todos los parámetros están guardados en el \emph{Model Workspace}, así que el archivo es autocontenido. Se usó el método ode45 con paso máximo de $10^{-4}$\,s.
+
+\begin{figure}[!t]
+\centering
+\figuraOpendiente{figuras/diagrama_simulink.png}{\columnwidth}{captura del diagrama de Simulink (figuras/diagrama\_simulink.png)}
+\caption{Modelo en Simulink del sistema controlador-observador-integrador.}
+\label{fig:diagrama}
+\end{figure}
+
+\subsection{Resultados}
+Se simularon dos casos. En el caso~A (el que exige el enunciado) la planta y el observador parten de condiciones iniciales distintas. En el caso~B ambos parten de cero, lo que permite medir el sobreimpulso y el tiempo de asentamiento sin el efecto de las condiciones iniciales. La Tabla~\ref{tab:simulink} resume los resultados.
+
+\begin{table}[!t]
+\centering
+\caption{Resultados de la simulación en Simulink \pendiente{confirmar con MATLAB}}
+\label{tab:simulink}
+\begin{tabular}{lcc}
+\toprule
+Medida & Especificación & Simulink \\
+\midrule
+Sobreimpulso (caso B) & 20\,\% & 17.8\,\% \\
+Tiempo de asentamiento (caso B) & 0.5\,s & 0.498\,s \\
+Error estacionario (casos A y B) & 0 & $\approx 0$ \\
+Convergencia del observador (caso A) & $\approx$ 0.05\,s & 0.055\,s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!t]
+\centering
+\figuraOpendiente{../simulink/figuras/fig_salida.png}{\columnwidth}{exportar fig\_salida.png con graficas\_simulink.m}
+\caption{Voltaje de salida ante un escalón unitario: caso A (condiciones iniciales distintas) y caso B (condiciones iniciales cero).}
+\label{fig:salida}
+\end{figure}
+
+\begin{figure}[!t]
+\centering
+\figuraOpendiente{../simulink/figuras/fig_estados.png}{\columnwidth}{exportar fig\_estados.png con graficas\_simulink.m}
+\caption{Estados reales y estimados en el caso A.}
+\label{fig:estados}
+\end{figure}
+
+\begin{figure}[!t]
+\centering
+\figuraOpendiente{../simulink/figuras/fig_error_estimacion.png}{\columnwidth}{exportar fig\_error\_estimacion.png con graficas\_simulink.m}
+\caption{Error de estimación $e = x - \hat{x}$ en el caso A.}
+\label{fig:error}
+\end{figure}
+
+La Fig.~\ref{fig:estados} muestra que los estados estimados alcanzan a los reales aunque el observador arranca en cero, y la Fig.~\ref{fig:error} muestra que el error de estimación se anula en unos 0.055\,s, cerca del valor de 0.05\,s esperado por diseño. Esto demuestra que el observador converge y que es mucho más rápido que el controlador, cuya respuesta tarda unos 0.5\,s. En la Fig.~\ref{fig:salida} se observa que, en ambos casos, la salida llega a la referencia de 1\,V sin error, gracias a la acción integral.
+
+% ------------------------------------------------------------------
+\section{Análisis de resultados}
+
+\emph{Desempeño.} El sobreimpulso obtenido (17.8\,\%) es un poco menor que el especificado. Esto se debe al tercer polo en $-40$: aunque está alejado, agrega algo de amortiguamiento. La aproximación de segundo orden es buena, y la diferencia está del lado favorable de la especificación. El tiempo de asentamiento (0.498\,s) coincide con el diseño.
+
+\emph{Transitorio con condiciones iniciales distintas.} En el caso~A la salida presenta un pico de unos 5.6\,V durante los primeros milisegundos. Ese pico no lo produce el observador, sino la condición inicial de la planta: una corriente de 2\,A en el inductor carga el capacitor rápidamente. De hecho, si el observador arrancara con las mismas condiciones que la planta, el pico sería mayor (unos 13\,V). Por esta razón las especificaciones se evaluaron con el caso~B.
+
+\emph{Limitaciones del modelo.} Durante el transitorio del caso~A el voltaje del capacitor llega a valores negativos (alrededor de $-2.3$\,V). Un convertidor boost real no puede hacer esto; ocurre porque el modelo es lineal y promediado. Además, en el modelo la entrada de control es $E_s$ con $d$ fijo, lo cual es una simplificación del planteamiento del libro. Estas limitaciones no afectan la validez del diseño dentro del modelo utilizado, pero deberían considerarse en una implementación física.
+
+\emph{Observador.} El factor de diez entre el observador y el controlador hace que el error de estimación desaparezca antes de que el controlador termine de responder, por lo que, pasados unos 0.05\,s, el sistema se comporta prácticamente como si midiera ambos estados.
+
+% ------------------------------------------------------------------
+\section{Conclusiones}
+
+\begin{itemize}
+\item El modelo del convertidor es controlable y observable, y su ganancia en DC de 2 coincide con la relación ideal de un boost con $d = 0.5$.
+\item La realimentación de estados con acción integral, con $K = [0.2760\ \ {-0.4941}]$ y $K_e = 0.14777$, cumple las especificaciones de 20\,\% de sobreimpulso y 0.5\,s de tiempo de asentamiento, con error de estado estacionario nulo.
+\item El observador con $L = [-21.759\ \ 150]^T$ es diez veces más rápido que los polos dominantes y converge en unos 0.055\,s, aun con condiciones iniciales distintas a las de la planta.
+\item \pendiente{Conclusión sobre la respuesta de la IA: si fue correcta y qué dificultades presentó.}
+\item Verificar los polos resultó más confiable que revisar solo las simulaciones, porque un observador mal diseñado puede pasar inadvertido en la respuesta al escalón.
+\end{itemize}
+
+% ------------------------------------------------------------------
+\begin{thebibliography}{1}
+\bibitem{nise}
+N.~S. Nise, \emph{Control Systems Engineering}, 7th~ed. Hoboken, NJ, USA: Wiley, 2015.
+
+\bibitem{vandijk}
+E.~van~Dijk, J.~N. Spruijt, D.~M. O'Sullivan y J.~B. Klaasens, ``PWM-switch modeling of DC-DC converters,'' \emph{IEEE Trans. Power Electron.}, vol.~10, no.~6, pp.~659--665, 1995.
+
+\bibitem{matlab}
+The MathWorks, Inc., \emph{Control System Toolbox User's Guide}, R2026a. Natick, MA, USA, 2026.
+\end{thebibliography}
+
+% ------------------------------------------------------------------
+\appendices
+\section{Respuesta íntegra de la IA}
+\label{ap:ia}
+\pendiente{Copiar aquí la respuesta completa de la IA al prompt de la sección VI.}
+
+\end{document}
