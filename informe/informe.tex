@@ -286,16 +286,18 @@ Se simularon dos casos. En el caso~A (el que exige el enunciado) la planta y el 
 
 \begin{table}[!t]
 \centering
-\caption{Resultados de la simulación en Simulink \pendiente{confirmar con MATLAB}}
+\caption{Resultados de la simulación en Simulink}
 \label{tab:simulink}
-\begin{tabular}{lcc}
+\small\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
 \toprule
-Medida & Especificación & Simulink \\
+Medida & Caso & Esperado & Simulink \\
 \midrule
-Sobreimpulso (caso B) & 20\,\% & 17.8\,\% \\
-Tiempo de asentamiento (caso B) & 0.5\,s & 0.498\,s \\
-Error estacionario (casos A y B) & 0 & $\approx 0$ \\
-Convergencia del observador (caso A) & $\approx$ 0.05\,s & 0.055\,s \\
+\%OS & B & 20\,\% & 17.8\,\% \\
+$T_s$ & B & 0.5\,s & 0.498\,s \\
+$r - y$ en $t = 1.5$\,s & A & 0 & $-3.16\times10^{-5}$\,V \\
+$r - y$ en $t = 1.5$\,s & B & 0 & $-6.79\times10^{-6}$\,V \\
+Convergencia del observador & A & $\approx$ 0.05\,s & 0.0553\,s \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -321,7 +323,16 @@ Convergencia del observador (caso A) & $\approx$ 0.05\,s & 0.055\,s \\
 \label{fig:error}
 \end{figure}
 
-La Fig.~\ref{fig:estados} muestra que los estados estimados alcanzan a los reales aunque el observador arranca en cero, y la Fig.~\ref{fig:error} muestra que el error de estimación se anula en unos 0.055\,s, cerca del valor de 0.05\,s esperado por diseño. Esto demuestra que el observador converge y que es mucho más rápido que el controlador, cuya respuesta tarda unos 0.5\,s. En la Fig.~\ref{fig:salida} se observa que, en ambos casos, la salida llega a la referencia de 1\,V sin error, gracias a la acción integral.
+La Fig.~\ref{fig:estados} muestra que los estados estimados alcanzan a los reales aunque el observador arranca en cero, y la Fig.~\ref{fig:error} muestra que la norma del error de estimación baja del 2\,\% de su valor inicial en 0.0553\,s, cerca del valor de 0.05\,s esperado por diseño. Esto demuestra que el observador converge y que es mucho más rápido que el controlador, cuya respuesta tarda unos 0.5\,s. En la Fig.~\ref{fig:salida} se observa que, en ambos casos, la salida llega a la referencia de 1\,V sin error, gracias a la acción integral. Los valores de $r - y$ de la Tabla~\ref{tab:simulink} no son exactamente cero porque la simulación termina en 1.5\,s y el transitorio todavía no se ha extinguido por completo: con polos dominantes en $-8$, el término residual es del orden de $e^{-8(1.5)} \approx 6\times10^{-6}$, que coincide con lo obtenido en el caso~B.
+
+\begin{figure}[!t]
+\centering
+\figuraOpendiente{figuras/fig_control.png}{\columnwidth}{exportar fig\_control.png con graficas\_simulink.m}
+\caption{Señal de control $u(t) = E_s(t)$ en el caso A.}
+\label{fig:control}
+\end{figure}
+
+La Fig.~\ref{fig:control} muestra la señal de control. En estado estacionario se estabiliza en 0.5\,V, que es justamente el valor esperado: como $G(0) = 2$, para obtener 1\,V en la salida se necesita $E_s = 1/2$\,V. Durante el transitorio alcanza un máximo cercano a 1.6\,V y un mínimo cercano a $-1.1$\,V.
 
 % ------------------------------------------------------------------
 \section{Análisis de resultados}
@@ -330,7 +341,7 @@ La Fig.~\ref{fig:estados} muestra que los estados estimados alcanzan a los reale
 
 \emph{Transitorio con condiciones iniciales distintas.} En el caso~A la salida presenta un pico de unos 5.6\,V durante los primeros milisegundos. Ese pico no lo produce el observador, sino la condición inicial de la planta: una corriente de 2\,A en el inductor carga el capacitor rápidamente. De hecho, si el observador arrancara con las mismas condiciones que la planta, el pico sería mayor (unos 13\,V). Por esta razón las especificaciones se evaluaron con el caso~B.
 
-\emph{Limitaciones del modelo.} Durante el transitorio del caso~A el voltaje del capacitor llega a valores negativos (alrededor de $-2.3$\,V). Un convertidor boost real no puede hacer esto; ocurre porque el modelo es lineal y promediado. Además, en el modelo la entrada de control es $E_s$ con $d$ fijo, lo cual es una simplificación del planteamiento del libro. Estas limitaciones no afectan la validez del diseño dentro del modelo utilizado, pero deberían considerarse en una implementación física.
+\emph{Limitaciones del modelo.} Durante el transitorio del caso~A el voltaje del capacitor llega a valores negativos (alrededor de $-2.3$\,V). Un convertidor boost real no puede hacer esto; ocurre porque el modelo es lineal y promediado. Algo parecido ocurre con la señal de control, que en el caso~A toma valores negativos (Fig.~\ref{fig:control}), mientras que el voltaje de entrada de un convertidor real es positivo. Además, en el modelo la entrada de control es $E_s$ con $d$ fijo, lo cual es una simplificación del planteamiento del libro. Estas limitaciones no afectan la validez del diseño dentro del modelo utilizado, pero deberían considerarse en una implementación física.
 
 \emph{Observador.} El factor de diez entre el observador y el controlador hace que el error de estimación desaparezca antes de que el controlador termine de responder, por lo que, pasados unos 0.05\,s, el sistema se comporta prácticamente como si midiera ambos estados.
 
