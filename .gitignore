@@ -4,3 +4,6 @@ informe/*.out
 slprj/
 *.slxc
 *.asv
+entrega/*.aux
+entrega/*.log
+entrega/*.out

@@ -16,7 +16,7 @@ REQUISITOS DE DISEÑO
 1. Desempeño del controlador: 20 % de sobreimpulso y tiempo de asentamiento de 0.5 s (criterio del 2 %, Ts = 4/(ζ·ωn)).
 2. Error de estado estacionario cero ante una entrada escalón, usando control integral con esta estructura:
    dx_N/dt = r − y,    u = −K·x + Ke·x_N,    con K = [k1  k2].
-3. Ubica el tercer polo del sistema aumentado 5 veces más a la izquierda que la parte real de los polos dominantes.
+3. Ubica el tercer polo del sistema aumentado 10 veces más a la izquierda que la parte real de los polos dominantes.
 4. Observador de estado completo (Luenberger): dx_est/dt = A·x_est + B·u + L·(y − C·x_est), con L = [l1; l2]. El observador debe ser 10 veces más rápido que el controlador: sus dos polos deben ser los polos dominantes del controlador multiplicados por 10 (mismo ζ, ωn 10 veces mayor).
 5. Haz el diseño directamente en las coordenadas originales (sin pasar a la forma de variables de fase), igualando el polinomio característico con el polinomio deseado.
 
