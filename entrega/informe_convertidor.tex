@@ -70,7 +70,7 @@ La planta es el convertidor DC-DC del problema 36 de \cite{nise}, con $L = 6$\,m
 \begin{equation}
 y = \begin{bmatrix} 0 & 1 \end{bmatrix} \begin{bmatrix} i_L \\ u_C \end{bmatrix}
 \end{equation}
-donde la salida es el voltaje del capacitor $u_C$. A estas matrices se les llama $A_z$, $B_z$ y $C_z$. La función de transferencia, obtenida con \texttt{ss2tf} \cite{matlab}, es
+donde la salida es el voltaje del capacitor $u_C$. A estas matrices se les llama $A_z$, $B_z$ y $C_z$. La función de transferencia, obtenida con \texttt{ss2tf}, es
 \begin{equation}
 G(s) = \frac{U_C(s)}{E_s(s)} = \frac{83335}{s^2 + 10s + 41665}
 \end{equation}
@@ -155,7 +155,7 @@ s^3 + (166.67k_1 + 10)s^2 \\
 + (1666.7k_1 + 83335k_2 + 41665)s + 83335k_e = 0
 \end{multline}
 
-Al agregar el integrador, el sistema pasa a ser de tercer orden, por lo que se necesita un tercer polo. Este se ubicó en $s = -80$, diez veces más lejos del eje imaginario que los polos dominantes, para que su efecto sobre la respuesta transitoria sea despreciable. Este valor cumple con holgura el criterio del Ejemplo~12.10 de \cite{nise}, que pide ubicarlo a más de cinco veces la parte real de los polos dominantes. La ecuación deseada es entonces
+Al agregar el integrador, el sistema pasa a ser de tercer orden, por lo que se necesita un tercer polo. Este se ubicó en $s = -80$, diez veces más lejos del eje imaginario que los polos dominantes, para que su efecto sobre la respuesta transitoria sea despreciable. Este valor cumple con holgura el criterio de ubicar el polo adicional a más de cinco veces la parte real de los polos dominantes \cite{nise}. La ecuación deseada es entonces
 \begin{multline}
 (s^2 + 16s + 307.855)(s + 80) = \\
 s^3 + 96s^2 + 1587.85s + 24628.4
@@ -173,7 +173,7 @@ En el sistema completo el controlador usa los estados estimados $\hat{x}$ en lug
 \end{equation}
 con $u = -K\hat{x} + k_e x_N$. Los valores propios del sistema completo (planta, integrador y observador) son $-8 \pm j15.616$, $-80$ y $-80 \pm j156.16$, es decir, los polos del controlador con integrador más los del observador. Esto concuerda con el principio de separación: el observador no modifica los polos que se diseñaron para el controlador.
 
-Conviene precisar en qué sentido el observador es diez veces más rápido. La comparación se hace contra los polos dominantes, que son los que fijan el desempeño especificado; así lo plantea también el Ejemplo~12.5 de \cite{nise}. El tercer polo, en $-80$, tiene la misma parte real que los polos del observador, pero su efecto sobre la respuesta es pequeño, como lo confirma que el sobreimpulso obtenido (19.46\,\%) sea casi el de un sistema de segundo orden puro.
+Conviene precisar en qué sentido el observador es diez veces más rápido. La comparación se hace contra los polos dominantes, que son los que fijan el desempeño especificado \cite{nise}. El tercer polo, en $-80$, tiene la misma parte real que los polos del observador, pero su efecto sobre la respuesta es pequeño, como lo confirma que el sobreimpulso obtenido (19.46\,\%) sea casi el de un sistema de segundo orden puro.
 
 \section{Diseño mediante inteligencia artificial}
 
@@ -218,7 +218,7 @@ La respuesta íntegra de la IA se incluye en el Apéndice~\ref{ap:ia}.
 
 \section{Implementación en Simulink}
 
-El sistema se implementó en Simulink \cite{simulink} (Fig.~\ref{fig:simulink}). La planta se representa con su función de transferencia y el observador se construye con bloques de ganancia ($A_z$, $B_z$, $C_z$ y $L_z$), un sumador y un integrador vectorial. El controlador toma los estados estimados, los multiplica por $-K$ y les suma la acción integral $k_e x_N$.
+El sistema se implementó en Simulink (Fig.~\ref{fig:simulink}). La planta se representa con su función de transferencia y el observador se construye con bloques de ganancia ($A_z$, $B_z$, $C_z$ y $L_z$), un sumador y un integrador vectorial. El controlador toma los estados estimados, los multiplica por $-K$ y les suma la acción integral $k_e x_N$.
 
 Como la planta es un bloque de función de transferencia, la corriente real del inductor no está disponible en Simulink; por eso la comparación entre $i_L$ real y estimada se hizo con \texttt{lsim} en MATLAB, con las mismas condiciones iniciales. Todos los valores numéricos están escritos directamente en los bloques, por lo que el modelo se puede ejecutar sin correr antes ningún script. La planta arranca con condiciones iniciales nulas y el observador con $\hat{x}(0) = [0.5\ \ 1]^T$, es decir, $\hat{i}_L(0) = 0.5$\,A y $\hat{u}_C(0) = 1$\,V. La referencia es un escalón unitario aplicado en $t = 1$\,s, de modo que durante el primer segundo se puede observar la convergencia del observador y después la respuesta al escalón. La simulación dura 2\,s con un paso máximo de 1\,ms.
 
@@ -336,15 +336,10 @@ El observador, con polos diez veces más rápidos que los del controlador, conve
 
 El transitorio inicial que aparece en Simulink muestra que, mientras el observador no ha convergido, el controlador actúa con información incorrecta. Por eso es conveniente que el observador sea bastante más rápido que el controlador.
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{1}
 \bibitem{nise}
 N.~S. Nise, \emph{Control Systems Engineering}, 7th~ed. Hoboken, NJ, USA: Wiley, 2015.
 
-\bibitem{matlab}
-The MathWorks, Inc., \emph{Control System Toolbox Documentation}, Natick, MA, USA. [En línea]. Disponible: \url{https://www.mathworks.com/help/control/}
-
-\bibitem{simulink}
-The MathWorks, Inc., \emph{Simulink Documentation}, Natick, MA, USA. [En línea]. Disponible: \url{https://www.mathworks.com/help/simulink/}
 \end{thebibliography}
 
 \appendices
