@@ -218,7 +218,7 @@ La respuesta íntegra de la IA se incluye en el Apéndice~\ref{ap:ia}.
 
 \section{Implementación en Simulink}
 
-El sistema se implementó en Simulink \cite{simulink} (Fig.~\ref{fig:simulink}) siguiendo la estructura del modelo de ejemplo del curso. La planta se representa con su función de transferencia y el observador se construye con bloques de ganancia ($A_z$, $B_z$, $C_z$ y $L_z$), un sumador y un integrador vectorial. El controlador toma los estados estimados, los multiplica por $-K$ y les suma la acción integral $k_e x_N$.
+El sistema se implementó en Simulink \cite{simulink} (Fig.~\ref{fig:simulink}). La planta se representa con su función de transferencia y el observador se construye con bloques de ganancia ($A_z$, $B_z$, $C_z$ y $L_z$), un sumador y un integrador vectorial. El controlador toma los estados estimados, los multiplica por $-K$ y les suma la acción integral $k_e x_N$.
 
 Como la planta es un bloque de función de transferencia, la corriente real del inductor no está disponible en Simulink; por eso la comparación entre $i_L$ real y estimada se hizo con \texttt{lsim} en MATLAB, con las mismas condiciones iniciales. Todos los valores numéricos están escritos directamente en los bloques, por lo que el modelo se puede ejecutar sin correr antes ningún script. La planta arranca con condiciones iniciales nulas y el observador con $\hat{x}(0) = [0.5\ \ 1]^T$, es decir, $\hat{i}_L(0) = 0.5$\,A y $\hat{u}_C(0) = 1$\,V. La referencia es un escalón unitario aplicado en $t = 1$\,s, de modo que durante el primer segundo se puede observar la convergencia del observador y después la respuesta al escalón. La simulación dura 2\,s con un paso máximo de 1\,ms.
 
